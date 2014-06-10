@@ -29,7 +29,7 @@ import variables as v
 class IREProblem:
     """class IREProblem()
 
-    This represents a Finite Element IRE problem based on the algorithm used by the University of Ljubljana
+    This represents a Finite Element IRE problem using a similar algorithm to that of ULJ
 
     """
     def __init__(self):
@@ -44,7 +44,7 @@ class IREProblem:
         self.patches = d.MeshFunction("size_t", mesh, "data/ire_facet_region.xml")
         self.subdomains = d.MeshFunction("size_t", mesh, "data/ire_physical_region.xml")
 
-        # Define integrals over subdomains
+        # Define differential over subdomains
         self.dxs = d.dx[self.subdomains]
 
         # Turn subdomains into a Numpy array
