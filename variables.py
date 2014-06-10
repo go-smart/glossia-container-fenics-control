@@ -1,10 +1,20 @@
+"""Define simulation variables
+"""
+
 import itertools as it
 
-# Define simulation variables
+# Define the electrodes
 electrodes = {
     "positive": [1, 2, 3, 4],
     "negative": [5, 6]
 }
+
+# Define the pairings of electrodes
+electrode_pairs = list(it.product(electrodes["positive"], electrodes["negative"]))
+#QLJ: Why is there this final pair?
+electrode_pairs.append((5, 6))
+
+# For each relevant pair, define a voltage
 voltages = [1300, 1500, 1300, 1900, 1300, 1300, 1300, 1900, 1300]
 tissues = {"liver": {
     "indices": (0,),
@@ -32,6 +42,7 @@ tissues = {"liver": {
     "relative permittivity": 1.,
 }}
 
+# Define the domain and voxel size
 dim_width = 512
 dim_height = 352
 dim_depth = 21
@@ -40,11 +51,6 @@ delta_width = 0.68359 / 1000.
 delta_height = 0.68359 / 1000.
 delta_depth = 2.7500 / 1000.
 voxel_size = delta_width * delta_height * delta_depth
-
-electrode_pairs = list(it.product(electrodes["positive"], electrodes["negative"]))
-
-#QLJ: Why is there this final pair?
-electrode_pairs.append((5, 6))
 
 #TODO: increase max restarts
 max_restarts = 0
