@@ -1,3 +1,11 @@
 data
 output
 *.pyc
+*.vtu
+*.pvd
+*.tgz
+*.xml
+data.external-needles
+input.bak
+input
+*.msh

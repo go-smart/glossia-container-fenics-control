@@ -1,17 +1,20 @@
-import dolfin as d
+from __future__ import print_function
+
+import fenics as d
 
 from problem import IREProblem
 
 d.set_log_level(1000)
 
-print "Initializing"
+print("Initializing")
 
 ire = IREProblem()
 
-print "Solving"
+print("Solving")
 
 ire.solve()
 
-print "Plotting result"
+print("Plotting result")
 
+#ire.plot_bitmap_result()
 ire.plot_result()
