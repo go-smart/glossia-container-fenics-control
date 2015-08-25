@@ -1,7 +1,7 @@
 """Define simulation variables
 """
 
-import itertools as it
+from gosmart.parameters import P
 
 # Define the electrodes
 electrodes = {
@@ -10,12 +10,9 @@ electrodes = {
 }
 
 # Define the pairings of electrodes
-electrode_pairs = list(it.product(electrodes["positive"], electrodes["negative"]))
-# QLJ: Why is there this final pair?
-electrode_pairs.append((5, 6))
-
 # For each relevant pair, define a voltage
-voltages = [1300, 1500, 1300, 1900, 1300, 1300, 1300, 1900, 1300]
+electrode_triples = P.CONSTANT_IRE_NEEDLEPAIR_VOLTAGE
+
 tissues = {"liver": {
     "indices": (11,),
     "sigma": (0.08, 0.32),

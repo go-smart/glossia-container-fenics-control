@@ -11,21 +11,26 @@ from dolfin import dx
 
 # Useful numerical libraries
 import numpy as N
+import matplotlib
+matplotlib.use('SVG')
 import matplotlib.pyplot as P
 
 # General tools
 import os
+import subprocess
+import shutil
 
 # UFL
-from ufl import *
+import ufl
 
 # Set interactive plotting on
 P.ion()
 
 # Use a separate Python file to declare variables
 import variables as v
+import vtk_tools
 
-input_mesh = "ire-cuboid-7"
+input_mesh = "input"
 
 
 class IREProblem:
@@ -40,14 +45,16 @@ class IREProblem:
         self.prepare_increase_conductivity()
 
     def load_mesh(self):
+        # Convert mesh from MSH to Dolfin-XML
+        shutil.copyfile("/shared/input/%s.msh" % input_mesh, "/shared/output/run/%s.msh" % input_mesh)
+        destination_xml = "/shared/output/run/%s.xml" % input_mesh
+        subprocess.call(["dolfin-convert", "/shared/output/run/%s.msh" % input_mesh, destination_xml])
+
         # Load mesh and boundaries
-        mesh = d.Mesh("input/%s.xml" % input_mesh)
+        mesh = d.Mesh(destination_xml)
 
-        # Import the binary data indicating the location of structures
-        self.load_patient_data()
-
-        self.patches = d.MeshFunction("size_t", mesh, "input/%s_facet_region.xml" % input_mesh)
-        self.subdomains = d.MeshFunction("size_t", mesh, "input/%s_physical_region.xml" % input_mesh)
+        self.patches = d.MeshFunction("size_t", mesh, "/shared/output/run/%s_facet_region.xml" % input_mesh)
+        self.subdomains = d.MeshFunction("size_t", mesh, "/shared/output/run/%s_physical_region.xml" % input_mesh)
 
         # Define differential over subdomains
         self.dxs = d.dx[self.subdomains]
@@ -64,39 +71,17 @@ class IREProblem:
         self.mesh = mesh
 
     def load_patient_data(self):
-        # width = v.dim_width * v.delta_width
-        # height = v.dim_height * v.delta_height
-        # depth = v.dim_depth * v.delta_depth
-
-        # self.box = d.BoxMesh(
-        #     0, 0, 0, height, width, depth,
-        #     v.dim_height, v.dim_width, v.dim_depth
-        # )
-        # self.BV = d.FunctionSpace(self.box, "CG", 1)
-        # self.box_map = self.BV.dofmap().vertex_to_dof_map(self.box)
-
         indicators = {}
-        # print(self.box.coordinates())
         for subdomain in ("liver", "vessels", "tumour"):
             values = N.empty((v.dim_height, v.dim_width, v.dim_depth), dtype='uintp')
-            # values = N.empty((v.dim_height, v.dim_width, v.dim_depth, 6), dtype='uintp')
             for i in range(0, v.dim_depth):
                 slice = N.loadtxt(os.path.join(
                     v.patient_data_location,
                     "patient-%s.%d.txt" % (subdomain, i + 1))
                 )
-                # r = (6 * i * v.dim_width * v.dim_height, 6 * (i + 1) * v.dim_width * v.dim_height)
                 values[:, :, i] = slice.astype('uintp')
-                # for j in range(6):
-                #     values[:, :, i, j] = slice.astype('uintp')
             indicators[subdomain] = values
         self.indicators = indicators
-        #     values = N.swapaxes(values, 0, 2)
-        #     indicators[subdomain].set_values(values.flatten())
-
-        #     f = d.File(subdomain + ".pvd")
-        #     f << indicators[subdomain]
-        #     print("Output " + subdomain)
 
     def interpolate_to_patient_data(self, function, indicator):
         values = N.empty((v.dim_height, v.dim_width, v.dim_depth), dtype='float')
@@ -114,10 +99,6 @@ class IREProblem:
             x[0] = it.multi_index[1] * delta[1] - offset[0]
             x[1] = it.multi_index[0] * delta[0] - offset[1]
             x[2] = it.multi_index[2] * delta[2] - offset[2]
-            #print(it.multi_index)
-            #print(delta)
-            #print(function.function_space().mesh().coordinates()[0])
-            #print(x)
             function.eval(u, x)
             values[...] = u[0]
             it.iternext()
@@ -138,7 +119,7 @@ class IREProblem:
         self.w = d.TestFunction(self.V)
 
         regions = self.per_tissue_constant(lambda l: l)
-        region_file = d.File("output/%s-regions.pvd" % input_mesh)
+        region_file = d.File("/shared/output/%s-regions.pvd" % input_mesh)
         region_file << regions
 
     def per_tissue_constant(self, generator):
@@ -154,6 +135,11 @@ class IREProblem:
         one.vector()[:] = 1
         return sum(d.assemble(one * self.dxs(i)) for i in v.tissues["tumour"]["indices"])
 
+    def save_lesion(self):
+        final_filename = "/shared/output/%s-max_e%06d" % (input_mesh, self.max_e_count)
+
+        vtk_tools.save_lesion("/shared/output/lesion.vtp", final_filename, "max_E", (80, None))
+
     def solve(self):
         z, w = (self.z, self.w)
         u0 = d.Constant(0.0)
@@ -168,32 +154,33 @@ class IREProblem:
         # Initialize the max_e vector, that will store the cumulative max e values
         max_e = d.Function(self.V)
         max_e.vector()[:] = 0.0
-        max_e_file = d.File("output/%s-max_e.pvd" % input_mesh)
+        max_e_file = d.File("/shared/output/%s-max_e.pvd" % input_mesh)
+        max_e_file.rename("max_E", "Maximum energy deposition by location")
         max_e_per_step = d.Function(self.V)
-        max_e_per_step_file = d.File("output/%s-max_e_per_step.pvd" % input_mesh)
+        max_e_per_step_file = d.File("/shared/output/%s-max_e_per_step.pvd" % input_mesh)
 
         self.es = {}
         self.max_es = {}
-        fi = d.File("output/%s-cond.pvd" % input_mesh)
+        fi = d.File("/shared/output/%s-cond.pvd" % input_mesh)
 
-        potential_file = d.File("output/%s-potential.pvd" % input_mesh)
+        potential_file = d.File("/shared/output/%s-potential.pvd" % input_mesh)
 
         # Loop through the voltages and electrode combinations
-        for voltage, pair in zip(v.voltages, v.electrode_pairs):
-            print("Electrodes %d (%lf) -> %d (0)" % (pair[0], voltage, pair[1]))
+        for i, (anode, cathode, voltage) in enumerate(v.electrode_triples):
+            print("Electrodes %d (%lf) -> %d (0)" % (anode, voltage, cathode))
 
             cond = d.project(self.sigma_start, V=self.DV)
 
             # Define the Dirichlet boundary conditions on the active needles
             uV = d.Constant(voltage)
-            term1_bc = d.DirichletBC(self.V, uV, self.patches, pair[0])
-            term2_bc = d.DirichletBC(self.V, u0, self.patches, pair[1])
+            term1_bc = d.DirichletBC(self.V, uV, self.patches, anode)
+            term2_bc = d.DirichletBC(self.V, u0, self.patches, cathode)
 
             e = d.Function(self.V)
             e.vector()[:] = max_e.vector()
 
             # Re-evaluate conductivity
-            self.increase_conductivity(cond, e, pair)
+            self.increase_conductivity(cond, e)
 
             for j in range(v.max_restarts):
                 # Update the bilinear form
@@ -201,15 +188,13 @@ class IREProblem:
 
                 # Solve again
                 print(" [solving...")
-                #d.solve(a == L, U, bcs=[term1_bc, term2_bc])
                 d.solve(a == L, U, bcs=[term1_bc, term2_bc])
-                #d.solve(a == L, U, bcs=[term1_bc, term2_bc], solver_parameters={"linear_solver": "bicgstab", "krylov_solver": {"relative_tolerance": 1e-8}})
                 print("  ....solved]")
 
                 # Extract electric field norm
-                for i in range(len(U.vector())):
-                    if N.isnan(U.vector()[i]):
-                        U.vector()[i] = 1e5
+                for k in range(len(U.vector())):
+                    if N.isnan(U.vector()[k]):
+                        U.vector()[k] = 1e5
 
                 e_new = d.project(d.sqrt(d.dot(d.grad(U), d.grad(U))), self.V)
 
@@ -218,7 +203,7 @@ class IREProblem:
 
                 # Re-evaluate conductivity
                 fi << cond
-                self.increase_conductivity(cond, e, pair)
+                self.increase_conductivity(cond, e)
 
             potential_file << U
 
@@ -226,10 +211,10 @@ class IREProblem:
             max_e_per_step.vector()[:] = e.vector()[:]
             max_e_per_step_file << max_e_per_step
 
-            # Store this electric field norm, for this pair, for later reference
-            self.es[pair] = e
+            # Store this electric field norm, for this triple, for later reference
+            self.es[i] = e
 
-            # Store the max of this electric field norm and that for all previous pairs
+            # Store the max of this electric field norm and that for all previous triples
             max_e_array = N.array([max(*X) for X in zip(max_e.vector(), e.vector())])
             max_e.vector()[:] = max_e_array
 
@@ -238,10 +223,11 @@ class IREProblem:
             max_e_new.vector()[:] = max_e_array
 
             # Store this max e function for the cumulative coverage curve calculation later
-            self.max_es[pair] = max_e_new
+            self.max_es[i] = max_e_new
 
             # Save the max e function to a VTU
             max_e_file << max_e
+            self.max_e_count = i
 
     def prepare_increase_conductivity(self):
         def sigma_function(l, i):
@@ -265,19 +251,22 @@ class IREProblem:
         self.k = (self.sigma_end - self.sigma_start) / (self.threshold_irreversible - self.threshold_reversible)
         self.h = self.sigma_start - self.k * self.threshold_reversible
 
-    def increase_conductivity(self, cond, e, pair):
+    def increase_conductivity(self, cond, e):
         # Set up the three way choice function
         intermediate = e * self.k + self.h
-        not_less_than = conditional(gt(e, self.threshold_irreversible), self.sigma_end, intermediate)
-        cond_expression = conditional(lt(e, self.threshold_reversible), self.sigma_start, not_less_than)
+        not_less_than = ufl.conditional(ufl.gt(e, self.threshold_irreversible), self.sigma_end, intermediate)
+        cond_expression = ufl.conditional(ufl.lt(e, self.threshold_reversible), self.sigma_start, not_less_than)
 
         # Project this onto the function space
-        cond_function = d.project(Max(cond_expression, cond), cond.function_space())
+        cond_function = d.project(ufl.Max(cond_expression, cond), cond.function_space())
         cond.assign(cond_function)
 
     def plot_bitmap_result(self):
         # Create a horizontal axis
         cc_haxis = N.linspace(5000, 1e5, 200)
+
+        # Import the binary data indicating the location of structures
+        self.load_patient_data()
 
         # Calculate the tumour volume; this is what we will compare against
         tumour_volume = (self.indicators["tumour"] == 1).sum()
@@ -285,10 +274,10 @@ class IREProblem:
         # Initialize the output_arrays vector a rescale the x to V/cm
         output_arrays = [cc_haxis / 100]
 
-        # Loop through the electrode pairs
-        for pair in v.electrode_pairs:
-            # Project the max e values for this pair to DG0 - this forces an evaluation of the function at the mid-point of each tet, DG0's only DOF
-            e_dg = self.interpolate_to_patient_data(self.max_es[pair], self.indicators["tumour"])
+        # Loop through the electrode triples
+        for i, triple in enumerate(v.electrode_triples):
+            # Project the max e values for this triple to DG0 - this forces an evaluation of the function at the mid-point of each tet, DG0's only DOF
+            e_dg = self.interpolate_to_patient_data(self.max_es[i], self.indicators["tumour"])
 
             # Sum the tet volumes for tets with a midpoint value greater than x, looping over x as e-norm thresholds (also scale to tumour volume)
             elim = N.vectorize(lambda x: (e_dg > x).sum() / tumour_volume)
@@ -298,11 +287,11 @@ class IREProblem:
         output = N.array(zip(*output_arrays))
 
         # Output cumulative coverage curves as CSV
-        N.savetxt('output/%s-coverage_curves_bitmap.csv' % input_mesh, output)
+        N.savetxt('/shared/output/%s-coverage_curves_bitmap.csv' % input_mesh, output)
 
         # Plot the coverage curves
-        for pair, a in zip(v.electrode_pairs, output_arrays[1:]):
-            P.plot(output_arrays[0], a, label="%d - %d" % pair)
+        for (anode, cathode, voltage), a in zip(v.electrode_triples, output_arrays[1:]):
+            P.plot(output_arrays[0], a, label="%d - %d" % (anode, cathode))
 
         # Draw the plot
         P.draw()
@@ -332,9 +321,9 @@ class IREProblem:
         output_arrays = [cc_haxis / 100]
 
         # Loop through the electrode pairs
-        for pair in v.electrode_pairs:
-            # Project the max e values for this pair to DG0 - this forces an evaluation of the function at the mid-point of each tet, DG0's only DOF
-            e_dg = d.project(self.max_es[pair], self.DV)
+        for i, triple in enumerate(v.electrode_triples):
+            # Project the max e values for this triple to DG0 - this forces an evaluation of the function at the mid-point of each tet, DG0's only DOF
+            e_dg = d.project(self.max_es[i], self.DV)
 
             # Calculate the "max e" contribution for each cell
             contributor = N.vectorize(lambda c: e_dg.vector()[c])
@@ -348,11 +337,11 @@ class IREProblem:
         output = N.array(zip(*output_arrays))
 
         # Output cumulative coverage curves as CSV
-        N.savetxt('output/%s-coverage_curves.csv' % input_mesh, output)
+        N.savetxt('/shared/output/%s-coverage_curves.csv' % input_mesh, output)
 
         # Plot the coverage curves
-        for pair, a in zip(v.electrode_pairs, output_arrays[1:]):
-            P.plot(output_arrays[0], a, label="%d - %d" % pair)
+        for (anode, cathode, voltage), a in zip(v.electrode_triples, output_arrays[1:]):
+            P.plot(output_arrays[0], a, label="%d - %d" % (anode, cathode))
 
         # Draw the plot
         P.draw()
@@ -363,4 +352,4 @@ class IREProblem:
         P.legend(loc=3)
 
         # Display the plot
-        P.show(block=True)
+        P.savefig('%s-coverage_curves' % input_mesh)
