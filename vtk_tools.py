@@ -7,8 +7,7 @@ def save_lesion(output_file, input_file, field, limits):
     reader.Update()
 
     threshold = v.vtkThreshold()
-    threshold.SetInputData(reader.GetOutput())
-    threshold.SetInputArrayToProcess(0, 0, 0, field, threshold.vtkDataSetAttributes.SCALARS)
+    threshold.SetInput(reader.GetOutput())
 
     if limits[0] is None:
         threshold.ThresholdByLower(limits[1])
@@ -17,10 +16,14 @@ def save_lesion(output_file, input_file, field, limits):
     else:
         threshold.ThresholdBetween(*limits)
 
+    threshold.SetInputArrayToProcess(0, 0, 0, v.vtkDataObject.FIELD_ASSOCIATION_CELLS, field)
+    threshold.Update()
+
     extract_surface = v.vtkDataSetSurfaceFilter()
-    extract_surface.SetInputData(threshold.GetOutput())
+    extract_surface.SetInput(threshold.GetOutput())
+    extract_surface.Update()
 
     writer = v.vtkXMLPolyDataWriter()
     writer.SetFileName(output_file)
-    writer.SetInputData(extract_surface.GetOutput())
+    writer.SetInput(extract_surface.GetOutput())
     writer.Write()

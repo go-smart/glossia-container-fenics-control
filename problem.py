@@ -40,11 +40,9 @@ class IREProblem:
 
     """
     def __init__(self):
-        self.load_mesh()
-        self.setup_fe()
-        self.prepare_increase_conductivity()
+        pass
 
-    def load_mesh(self):
+    def load(self):
         # Convert mesh from MSH to Dolfin-XML
         shutil.copyfile("/shared/input/%s.msh" % input_mesh, "/shared/output/run/%s.msh" % input_mesh)
         destination_xml = "/shared/output/run/%s.xml" % input_mesh
@@ -69,6 +67,9 @@ class IREProblem:
                 self.tissues_by_subdomain[j] = t
 
         self.mesh = mesh
+
+        self.setup_fe()
+        self.prepare_increase_conductivity()
 
     def load_patient_data(self):
         indicators = {}
@@ -136,9 +137,12 @@ class IREProblem:
         return sum(d.assemble(one * self.dxs(i)) for i in v.tissues["tumour"]["indices"])
 
     def save_lesion(self):
-        final_filename = "/shared/output/%s-max_e%06d" % (input_mesh, self.max_e_count)
+        final_filename = "/shared/output/%s-max_e%06d.vtu" % (input_mesh, self.max_e_count)
 
-        vtk_tools.save_lesion("/shared/output/lesion.vtp", final_filename, "max_E", (80, None))
+        destination = "/shared/output/lesion.vtp"
+        vtk_tools.save_lesion(destination, final_filename, "max_E", (80, None))
+
+        print("Output file to %s?" % destination, os.path.exists(destination))
 
     def solve(self):
         z, w = (self.z, self.w)
@@ -154,8 +158,8 @@ class IREProblem:
         # Initialize the max_e vector, that will store the cumulative max e values
         max_e = d.Function(self.V)
         max_e.vector()[:] = 0.0
+        max_e.rename("max_E", "Maximum energy deposition by location")
         max_e_file = d.File("/shared/output/%s-max_e.pvd" % input_mesh)
-        max_e_file.rename("max_E", "Maximum energy deposition by location")
         max_e_per_step = d.Function(self.V)
         max_e_per_step_file = d.File("/shared/output/%s-max_e_per_step.pvd" % input_mesh)
 
@@ -232,14 +236,14 @@ class IREProblem:
     def prepare_increase_conductivity(self):
         def sigma_function(l, i):
             s = self.tissues_by_subdomain[l]["sigma"]
-            if isinstance(s, tuple):
+            if isinstance(s, list):
                 return s[i]
             else:
                 return s
 
         def threshold_function(l, i):
             s = self.tissues_by_subdomain[l]["sigma"]
-            if isinstance(s, tuple):
+            if isinstance(s, list):
                 return self.tissues_by_subdomain[l][i]
             else:
                 return 1 if i == "threshold reversible" else 0
