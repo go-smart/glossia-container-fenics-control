@@ -62,7 +62,8 @@ class IREProblem:
 
         # Create a map from subdomain indices to tissues
         self.tissues_by_subdomain = {}
-        for t in v.tissues.values():
+        for i, t in v.tissues.items():
+            print(i, t)
             for j in t["indices"]:
                 self.tissues_by_subdomain[j] = t
 
