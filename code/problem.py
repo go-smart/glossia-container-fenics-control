@@ -44,15 +44,15 @@ class IREProblem:
 
     def load(self):
         # Convert mesh from MSH to Dolfin-XML
-        shutil.copyfile("/shared/input/%s.msh" % input_mesh, "/shared/output/run/%s.msh" % input_mesh)
-        destination_xml = "/shared/output/run/%s.xml" % input_mesh
-        subprocess.call(["dolfin-convert", "/shared/output/run/%s.msh" % input_mesh, destination_xml])
+        shutil.copyfile("input/%s.msh" % input_mesh, "%s.msh" % input_mesh)
+        destination_xml = "%s.xml" % input_mesh
+        subprocess.call(["dolfin-convert", "%s.msh" % input_mesh, destination_xml])
 
         # Load mesh and boundaries
         mesh = d.Mesh(destination_xml)
 
-        self.patches = d.MeshFunction("size_t", mesh, "/shared/output/run/%s_facet_region.xml" % input_mesh)
-        self.subdomains = d.MeshFunction("size_t", mesh, "/shared/output/run/%s_physical_region.xml" % input_mesh)
+        self.patches = d.MeshFunction("size_t", mesh, "%s_facet_region.xml" % input_mesh)
+        self.subdomains = d.MeshFunction("size_t", mesh, "%s_physical_region.xml" % input_mesh)
 
         # Define differential over subdomains
         self.dxs = d.dx[self.subdomains]
@@ -121,7 +121,7 @@ class IREProblem:
         self.w = d.TestFunction(self.V)
 
         regions = self.per_tissue_constant(lambda l: l)
-        region_file = d.File("/shared/output/%s-regions.pvd" % input_mesh)
+        region_file = d.File("../%s-regions.pvd" % input_mesh)
         region_file << regions
 
     def per_tissue_constant(self, generator):
@@ -138,9 +138,9 @@ class IREProblem:
         return sum(d.assemble(one * self.dxs(i)) for i in v.tissues["tumour"]["indices"])
 
     def save_lesion(self):
-        final_filename = "/shared/output/%s-max_e%06d.vtu" % (input_mesh, self.max_e_count)
+        final_filename = "../%s-max_e%06d.vtu" % (input_mesh, self.max_e_count)
 
-        destination = "/shared/output/lesion.vtp"
+        destination = "../lesion.vtp"
         vtk_tools.save_lesion(destination, final_filename, "max_E", (80, None))
 
         print("Output file to %s?" % destination, os.path.exists(destination))
@@ -160,15 +160,15 @@ class IREProblem:
         max_e = d.Function(self.V)
         max_e.vector()[:] = 0.0
         max_e.rename("max_E", "Maximum energy deposition by location")
-        max_e_file = d.File("/shared/output/%s-max_e.pvd" % input_mesh)
+        max_e_file = d.File("../%s-max_e.pvd" % input_mesh)
         max_e_per_step = d.Function(self.V)
-        max_e_per_step_file = d.File("/shared/output/%s-max_e_per_step.pvd" % input_mesh)
+        max_e_per_step_file = d.File("../%s-max_e_per_step.pvd" % input_mesh)
 
         self.es = {}
         self.max_es = {}
-        fi = d.File("/shared/output/%s-cond.pvd" % input_mesh)
+        fi = d.File("../%s-cond.pvd" % input_mesh)
 
-        potential_file = d.File("/shared/output/%s-potential.pvd" % input_mesh)
+        potential_file = d.File("../%s-potential.pvd" % input_mesh)
 
         # Loop through the voltages and electrode combinations
         for i, (anode, cathode, voltage) in enumerate(v.electrode_triples):
@@ -292,7 +292,7 @@ class IREProblem:
         output = N.array(zip(*output_arrays))
 
         # Output cumulative coverage curves as CSV
-        N.savetxt('/shared/output/%s-coverage_curves_bitmap.csv' % input_mesh, output)
+        N.savetxt('../%s-coverage_curves_bitmap.csv' % input_mesh, output)
 
         # Plot the coverage curves
         for (anode, cathode, voltage), a in zip(v.electrode_triples, output_arrays[1:]):
@@ -342,7 +342,7 @@ class IREProblem:
         output = N.array(zip(*output_arrays))
 
         # Output cumulative coverage curves as CSV
-        N.savetxt('/shared/output/%s-coverage_curves.csv' % input_mesh, output)
+        N.savetxt('../%s-coverage_curves.csv' % input_mesh, output)
 
         # Plot the coverage curves
         for (anode, cathode, voltage), a in zip(v.electrode_triples, output_arrays[1:]):
