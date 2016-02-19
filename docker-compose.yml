@@ -1,8 +1,9 @@
-glossia_fenics:
-    image: gosmart/glossia-fenics
-    command: --interpreter "python3 /mesh_and_go.py --mesh /shared/input/elmer_libnuma.msh:/shared/input/mesh_labelling.yml" --target run_ire.py --static --passthrough --archive /shared/code
+goosefoot:
+    image: gosmart/glossia-goosefoot
+    entrypoint: gosling
+    command: --interpreter "go-smart-launcher" --target settings.xml --static --passthrough --archive /shared/settings
     volumes:
-        - ./code:/shared/code
         - ./gssfhome:/var/run/gssf
         - ./input:/shared/input
         - ./output:/shared/output
+        - ./settings:/shared/settings
