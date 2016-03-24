@@ -18,6 +18,7 @@ Use --simimage to pull it in, or --no-simimage to ignore. While this image may b
 computer already, it is recommended that you only allow pulling of remote images if the
 simulation comes from a trusted source
 EOM
+        exit
     fi
 fi
 
