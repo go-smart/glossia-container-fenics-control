@@ -9,6 +9,8 @@ then
         IMAGE_ID=$(cat input/glossia-simimage.txt)
         echo "Using image ${IMAGE_ID}"
     elif [ "$1" = "--no-simimage" ];
+    then
+        echo "Using default image ${IMAGE_ID}"
     else
         echo <<EOM
 Diagnostic input indicates a specific image ID (i.e. version of the simulation software) "
