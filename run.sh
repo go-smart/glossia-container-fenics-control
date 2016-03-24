@@ -12,7 +12,7 @@ then
     then
         echo "Using default image ${IMAGE_ID}"
     else
-        echo <<EOM
+        cat <<EOM
 Diagnostic input indicates a specific image ID (i.e. version of the simulation software) "
 Use --simimage to pull it in, or --no-simimage to ignore. While this image may be on your
 computer already, it is recommended that you only allow pulling of remote images if the
