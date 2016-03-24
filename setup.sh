@@ -1,6 +1,6 @@
 #!/bin/sh
 
 mkdir -p gssfhome
-chown 104:107 gssfhome
+chown -R 104:107 gssfhome
 mkdir -p output
-chown 104:107 output
+chown -R 104:107 output
