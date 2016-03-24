@@ -1,5 +1,5 @@
 goosefoot:
-    image: gosmart/glossia-goosefoot
+    image: ${IMAGE_ID}
     entrypoint: gosling
     command: --interpreter "go-smart-launcher" --target settings.xml --static --passthrough --archive /shared/settings --no-rm
     volumes:
