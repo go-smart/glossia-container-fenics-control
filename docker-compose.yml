@@ -1,7 +1,7 @@
 goosefoot:
     image: gosmart/glossia-goosefoot
     entrypoint: gosling
-    command: --interpreter "go-smart-launcher" --target settings.xml --static --passthrough --archive /shared/settings
+    command: --interpreter "go-smart-launcher" --target settings.xml --static --passthrough --archive /shared/settings --no-rm
     volumes:
         - ./gssfhome:/var/run/gssf
         - ./input:/shared/input
