@@ -1,7 +1,7 @@
 fenics:
     image: ${IMAGE_ID}
     entrypoint: gosling
-    command: --interpreter "python3 /mesh_and_go.py" --archive start.tar.gz --target start.py --passthrough --no-rm --static
+    command: --interpreter "python3 /mesh_and_go.py" --archive start.tar.gz --target start.py --passthrough --static
     volumes:
         - ./gssfhome:/var/run/gssf
         - ./input:/shared/input
