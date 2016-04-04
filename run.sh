@@ -1,6 +1,6 @@
 #!/bin/sh
 
-IMAGE_ID="gosmart/glossia-goosefoot"
+IMAGE_ID="gosmart/glossia-fenics"
 
 if [ -f input/glossia-simimage.txt ];
 then
